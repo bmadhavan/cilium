@@ -15,19 +15,29 @@
 package k8s
 
 import (
+	"fmt"
+
 	k8sconst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
 
-	"fmt"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GetPolicyLabelsv1 extracts the name of policy name
+// GetPolicyLabelsv1 extracts the name of np. It uses the name  from the Cilium
+// annotation if present. If the policy's annotations do not contain
+// the Cilium annotation, the policy's name field is used instead.
 func GetPolicyLabelsv1(np *networkingv1.NetworkPolicy) labels.LabelArray {
+
+	// TODO (ianvernon) add unit test
+	if np == nil {
+		log.Warningf("unable to extract policy labels because provided NetworkPolicy is nil")
+		return nil
+	}
+
 	policyName := np.Annotations[AnnotationName]
 	if policyName == "" {
 		policyName = np.Name
@@ -39,6 +49,12 @@ func GetPolicyLabelsv1(np *networkingv1.NetworkPolicy) labels.LabelArray {
 }
 
 func parseNetworkPolicyPeer(namespace string, peer *networkingv1.NetworkPolicyPeer) (*api.EndpointSelector, error) {
+
+	// TODO (ianvernon) add unit test
+	if peer == nil {
+		return nil, fmt.Errorf("cannot parse NetworkPolicyPeer because it is nil")
+	}
+
 	var labelSelector *metav1.LabelSelector
 
 	// Only one or the other can be set, not both
@@ -76,12 +92,14 @@ func parseNetworkPolicyPeer(namespace string, peer *networkingv1.NetworkPolicyPe
 // ParseNetworkPolicy parses a k8s NetworkPolicy and returns a list of
 // Cilium policy rules that can be added
 func ParseNetworkPolicy(np *networkingv1.NetworkPolicy) (api.Rules, error) {
-	ingresses := []api.IngressRule{}
-	egresses := []api.EgressRule{}
 
+	// TODO (ianvernon) add unit test
 	if np == nil {
 		return nil, fmt.Errorf("cannot parse NetworkPolicy because it is nil")
 	}
+
+	ingresses := []api.IngressRule{}
+	egresses := []api.EgressRule{}
 
 	namespace := k8sconst.ExtractNamespace(&np.ObjectMeta)
 	for _, iRule := range np.Spec.Ingress {
@@ -156,6 +174,8 @@ func ParseNetworkPolicy(np *networkingv1.NetworkPolicy) (api.Rules, error) {
 }
 
 func ipBlockToCIDRRule(block *networkingv1.IPBlock) api.CIDRRule {
+
+	// TODO (ianvernon) add unit test
 	cidrRule := api.CIDRRule{}
 	cidrRule.Cidr = api.CIDR(block.CIDR)
 	for _, v := range block.Except {
@@ -164,8 +184,7 @@ func ipBlockToCIDRRule(block *networkingv1.IPBlock) api.CIDRRule {
 	return cidrRule
 }
 
-// Converts list of K8s NetworkPolicyPorts to Cilium PortRules.
-// Assumes that provided list of NetworkPolicyPorts is not nil.
+// parsePorts converts list of K8s NetworkPolicyPorts to Cilium PortRules.
 func parsePorts(ports []networkingv1.NetworkPolicyPort) []api.PortRule {
 	portRules := []api.PortRule{}
 	for _, port := range ports {
